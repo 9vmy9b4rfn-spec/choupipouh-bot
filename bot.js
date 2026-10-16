@@ -1,7 +1,9 @@
-const http = require('http');
-http.createServer((req, res) => res.end('Bot actif')).listen(process.env.PORT || 3000);
 const { Client, GatewayIntentBits } = require('discord.js');
 const mysql = require('mysql2/promise');
+const http = require('http');
+
+const httpPort = process.env.PORT || 3000;
+http.createServer((req, res) => res.end('Bot actif')).listen(httpPort);
 
 const client = new Client({
     intents: [
@@ -39,6 +41,46 @@ const paliers = {
 
 client.on('ready', async () => {
     console.log(`Bot connecté en tant que ${client.user.tag}`);
+    setInterval(verifierPaliers, 60000);
 });
+
+async function verifierPaliers() {
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+        const [rows] = await connection.execute('SELECT discord_id, points FROM choupipouh_points');
+        await connection.end();
+
+        const guild = await client.guilds.fetch(guildId);
+        await guild.members.fetch();
+
+        for (const row of rows) {
+            const member = guild.members.cache.get(row.discord_id);
+            if (!member) continue;
+
+            let roleIdToAssign = null;
+            const points = row.points;
+
+            const sortedPaliers = Object.keys(paliers).map(Number).sort((a, b) => b - a);
+            for (const palier of sortedPaliers) {
+                if (points >= palier) {
+                    roleIdToAssign = paliers[palier];
+                    break;
+                }
+            }
+
+            for (const [palierVal, rId] of Object.entries(paliers)) {
+                if (member.roles.cache.has(rId) && rId !== roleIdToAssign) {
+                    await member.roles.remove(rId).catch(console.error);
+                }
+            }
+
+            if (roleIdToAssign && !member.roles.cache.has(roleIdToAssign)) {
+                await member.roles.add(roleIdToAssign).catch(console.error);
+            }
+        }
+    } catch (err) {
+        console.error('Erreur SQL:', err);
+    }
+}
 
 client.login(process.env.DISCORD_TOKEN);
