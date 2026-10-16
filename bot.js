@@ -49,16 +49,20 @@ async function verifierPaliers() {
         const connection = await mysql.createConnection(dbConfig);
         const [rows] = await connection.execute('SELECT discord_id, points FROM choupipouh_points');
         await connection.end();
+        console.log('Données récupérées de la BDD :', rows);
 
         const guild = await client.guilds.fetch(guildId);
         await guild.members.fetch();
 
         for (const row of rows) {
-            const member = guild.members.cache.get(row.discord_id);
-            if (!member) continue;
+            const member = guild.members.cache.get(String(row.discord_id));
+            if (!member) {
+                console.log(`Membre Discord non trouvé pour l'ID : ${row.discord_id}`);
+                continue;
+            }
 
             let roleIdToAssign = null;
-            const points = row.points;
+            const points = Number(row.points);
 
             const sortedPaliers = Object.keys(paliers).map(Number).sort((a, b) => b - a);
             for (const palier of sortedPaliers) {
@@ -76,10 +80,11 @@ async function verifierPaliers() {
 
             if (roleIdToAssign && !member.roles.cache.has(roleIdToAssign)) {
                 await member.roles.add(roleIdToAssign).catch(console.error);
+                console.log(`Rôle attribué avec succès à ${member.user.tag} pour ${points} points.`);
             }
         }
     } catch (err) {
-        console.error('Erreur SQL:', err);
+        console.error('Erreur SQL détaillée :', err);
     }
 }
 
