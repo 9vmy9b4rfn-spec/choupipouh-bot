@@ -1,3 +1,5 @@
+const http = require('http');
+http.createServer((req, res) => res.end('Bot actif')).listen(process.env.PORT || 3000);
 const { Client, GatewayIntentBits } = require('discord.js');
 const mysql = require('mysql2/promise');
 
